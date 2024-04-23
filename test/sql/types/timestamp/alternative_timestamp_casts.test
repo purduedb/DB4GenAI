@@ -1,0 +1,36 @@
+# name: test/sql/types/timestamp/alternative_timestamp_casts.test
+# description: Test timestamp casts
+# group: [timestamp]
+
+statement ok
+PRAGMA enable_verification
+
+query I
+SELECT DATE '1992-01-01'::TIMESTAMP_MS
+----
+1992-01-01 00:00:00
+
+query I
+SELECT DATE '1992-01-01'::TIMESTAMP_S
+----
+1992-01-01 00:00:00
+
+query I
+SELECT DATE '1992-01-01'::TIMESTAMP_NS
+----
+1992-01-01 00:00:00
+
+query I
+select '2023-12-08 08:51:39.123456'::TIMESTAMP_MS::TIME;
+----
+08:51:39.123
+
+query I
+select '2023-12-08 08:51:39.123456'::TIMESTAMP_S::TIME;
+----
+08:51:39
+
+query I
+select '2023-12-08 08:51:39.123456'::TIMESTAMP_NS::TIME;
+----
+08:51:39.123456
