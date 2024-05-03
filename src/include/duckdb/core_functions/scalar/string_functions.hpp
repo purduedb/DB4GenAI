@@ -90,6 +90,15 @@ struct FormatFun {
 	static ScalarFunction GetFunction();
 };
 
+struct FormatLLMReorderFun {
+	static constexpr const char *Name = "format_llm_reorder";
+	static constexpr const char *Parameters = "format,parameters...";
+	static constexpr const char *Description = "Formats a string using fmt syntax and reorder parameters according to their LLM score";
+	static constexpr const char *Example = "format_llm_reorder('Give an overview based on \"{}\" and {}', r.review, p.description)";
+
+	static ScalarFunction GetFunction();
+};
+
 struct FormatBytesFun {
 	static constexpr const char *Name = "format_bytes";
 	static constexpr const char *Parameters = "bytes";

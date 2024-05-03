@@ -19,6 +19,33 @@
 
 namespace duckdb {
 
+DataChunkColumnStatistics::DataChunkColumnStatistics() : total_str_len(0), group_hash(set<hash_t>()) {
+
+}
+
+DataChunkColumnStatistics::~DataChunkColumnStatistics() {
+
+}
+
+void DataChunkColumnStatistics::AddItem(const Value &val) {
+	group_hash.insert(std::move(val.Hash()));
+	total_str_len += val.ToString().length();
+}
+
+void DataChunkColumnStatistics::RemoveItem(const Value &val) {
+	group_hash.erase(std::move(val.Hash()));
+	total_str_len -= val.ToString().length();
+}
+
+void DataChunkColumnStatistics::Reset() {
+	total_str_len = 0;
+	group_hash = set<hash_t>();
+}
+
+double DataChunkColumnStatistics::LLMScore(idx_t cardinality) {
+	return -(double) total_str_len / (double) group_hash.size();
+}
+
 DataChunk::DataChunk() : count(0), capacity(STANDARD_VECTOR_SIZE) {
 }
 
@@ -46,6 +73,7 @@ void DataChunk::Initialize(Allocator &allocator, vector<LogicalType>::const_iter
 		VectorCache cache(allocator, *begin, capacity);
 		data.emplace_back(cache);
 		vector_caches.push_back(std::move(cache));
+		vector_column_statistics.push_back(DataChunkColumnStatistics());
 	}
 }
 
@@ -60,6 +88,7 @@ void DataChunk::InitializeEmpty(vector<LogicalType>::const_iterator begin, vecto
 	D_ASSERT(std::distance(begin, end) != 0); // empty chunk not allowed
 	for (; begin != end; begin++) {
 		data.emplace_back(*begin, nullptr);
+		vector_column_statistics.push_back(DataChunkColumnStatistics());
 	}
 }
 
@@ -72,6 +101,7 @@ void DataChunk::Reset() {
 	}
 	for (idx_t i = 0; i < ColumnCount(); i++) {
 		data[i].ResetFromCache(vector_caches[i]);
+		vector_column_statistics[i].Reset();
 	}
 	capacity = STANDARD_VECTOR_SIZE;
 	SetCardinality(0);
@@ -80,6 +110,7 @@ void DataChunk::Reset() {
 void DataChunk::Destroy() {
 	data.clear();
 	vector_caches.clear();
+	vector_column_statistics.clear();
 	capacity = 0;
 	SetCardinality(0);
 }
@@ -90,6 +121,8 @@ Value DataChunk::GetValue(idx_t col_idx, idx_t index) const {
 }
 
 void DataChunk::SetValue(idx_t col_idx, idx_t index, const Value &val) {
+	vector_column_statistics[col_idx].RemoveItem(GetValue(col_idx, index));
+	vector_column_statistics[col_idx].AddItem(val);
 	data[col_idx].SetValue(index, val);
 }
 
@@ -116,7 +149,7 @@ void DataChunk::Move(DataChunk &chunk) {
 	SetCapacity(chunk);
 	data = std::move(chunk.data);
 	vector_caches = std::move(chunk.vector_caches);
-
+	vector_column_statistics = std::move(vector_column_statistics);
 	chunk.Destroy();
 }
 
@@ -127,6 +160,9 @@ void DataChunk::Copy(DataChunk &other, idx_t offset) const {
 	for (idx_t i = 0; i < ColumnCount(); i++) {
 		D_ASSERT(other.data[i].GetVectorType() == VectorType::FLAT_VECTOR);
 		VectorOperations::Copy(data[i], other.data[i], size(), offset, 0);
+		for (idx_t j = offset; j < size(); ++j) {
+			other.vector_column_statistics[i].AddItem(GetValue(i, j));
+		}
 	}
 	other.SetCardinality(size() - offset);
 }
@@ -139,6 +175,9 @@ void DataChunk::Copy(DataChunk &other, const SelectionVector &sel, const idx_t s
 	for (idx_t i = 0; i < ColumnCount(); i++) {
 		D_ASSERT(other.data[i].GetVectorType() == VectorType::FLAT_VECTOR);
 		VectorOperations::Copy(data[i], other.data[i], sel, source_count, offset, 0);
+		for (idx_t j = offset; j < size(); ++j) {
+			other.vector_column_statistics[i].AddItem(GetValue(i, j));
+		}
 	}
 	other.SetCardinality(source_count - offset);
 }
@@ -151,10 +190,12 @@ void DataChunk::Split(DataChunk &other, idx_t split_idx) {
 	for (idx_t col_idx = split_idx; col_idx < num_cols; col_idx++) {
 		other.data.push_back(std::move(data[col_idx]));
 		other.vector_caches.push_back(std::move(vector_caches[col_idx]));
+		other.vector_column_statistics.push_back(std::move(vector_column_statistics[col_idx]));
 	}
 	for (idx_t col_idx = split_idx; col_idx < num_cols; col_idx++) {
 		data.pop_back();
 		vector_caches.pop_back();
+		vector_column_statistics.pop_back();
 	}
 	other.SetCapacity(*this);
 	other.SetCardinality(*this);
@@ -207,6 +248,9 @@ void DataChunk::Append(const DataChunk &other, bool resize, SelectionVector *sel
 			VectorOperations::Copy(other.data[i], data[i], *sel, sel_count, 0, size());
 		} else {
 			VectorOperations::Copy(other.data[i], data[i], other.size(), 0, size());
+		}
+		for (idx_t j = 0; j < other.size(); ++j) {
+			vector_column_statistics[i].AddItem(data[i].GetValue(j));
 		}
 	}
 	SetCardinality(new_size);
@@ -287,6 +331,9 @@ void DataChunk::Slice(const SelectionVector &sel_vector, idx_t count_p) {
 	SelCache merge_cache;
 	for (idx_t c = 0; c < ColumnCount(); c++) {
 		data[c].Slice(sel_vector, count_p, merge_cache);
+		for (int j = 0; j < count_p; ++j) {
+			vector_column_statistics[c].RemoveItem(GetValue(c, sel_vector[j]));
+		}
 	}
 }
 
@@ -295,12 +342,17 @@ void DataChunk::Slice(const DataChunk &other, const SelectionVector &sel, idx_t 
 	this->count = count_p;
 	SelCache merge_cache;
 	for (idx_t c = 0; c < other.ColumnCount(); c++) {
+		for (int j = 0; j < count_p; ++j) {
+			vector_column_statistics[c + col_offset].RemoveItem(GetValue(c + col_offset, sel[j]));
+		}
 		if (other.data[c].GetVectorType() == VectorType::DICTIONARY_VECTOR) {
 			// already a dictionary! merge the dictionaries
 			data[col_offset + c].Reference(other.data[c]);
 			data[col_offset + c].Slice(sel, count_p, merge_cache);
 		} else {
 			data[col_offset + c].Slice(other.data[c], sel, count_p);
+		}
+
 		}
 	}
 }

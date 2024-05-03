@@ -160,12 +160,6 @@ unique_ptr<LogicalOperator> Optimizer::Optimize(unique_ptr<LogicalOperator> plan
 		plan = topn.Optimize(std::move(plan));
 	});
 
-	// llm optimize
-	RunOptimizer(OptimizerType::LLM, [&]() {
-		LLM llm;
-		plan = llm.Optimize(std::move(plan));
-	});
-
 	// creates projection maps so unused columns are projected out early
 	RunOptimizer(OptimizerType::COLUMN_LIFETIME, [&]() {
 		ColumnLifetimeAnalyzer column_lifetime(true);

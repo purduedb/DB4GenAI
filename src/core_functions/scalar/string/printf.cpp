@@ -1,8 +1,9 @@
+#include "fmt/printf.h"
+
+#include "duckdb/common/limits.hpp"
 #include "duckdb/core_functions/scalar/string_functions.hpp"
 #include "duckdb/planner/expression/bound_function_expression.hpp"
-#include "duckdb/common/limits.hpp"
 #include "fmt/format.h"
-#include "fmt/printf.h"
 
 namespace duckdb {
 
@@ -54,7 +55,7 @@ unique_ptr<FunctionData> BindPrintfFunction(ClientContext &context, ScalarFuncti
 	return nullptr;
 }
 
-template <class FORMAT_FUN, class CTX>
+template <class FORMAT_FUN, class CTX, bool reorder = false>
 static void PrintfFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &format_string = args.data[0];
 	auto &result_validity = FlatVector::Validity(result);
@@ -82,7 +83,15 @@ static void PrintfFunction(DataChunk &args, ExpressionState &state, Vector &resu
 
 	auto format_data = FlatVector::GetData<string_t>(format_string);
 	auto result_data = FlatVector::GetData<string_t>(result);
-	for (idx_t idx = 0; idx < count; idx++) {
+	std::vector<pair<double, idx_t>> custom_concat_order;
+	for (idx_t idx = 0; idx < args.ColumnCount(); idx++) {
+		custom_concat_order.push_back(make_pair(args.vector_column_statistics[idx].LLMScore(), idx));
+	}
+	if (reorder) {
+		sort(custom_concat_order.begin(), custom_concat_order.end());
+	}
+	for (const auto &it : custom_concat_order) {
+		idx_t idx = it.second;
 		if (result.GetVectorType() == VectorType::FLAT_VECTOR && FlatVector::IsNull(result, idx)) {
 			// this entry is NULL: skip it
 			continue;
@@ -166,6 +175,14 @@ ScalarFunction FormatFun::GetFunction() {
 	                          PrintfFunction<FMTFormat, duckdb_fmt::format_context>, BindPrintfFunction);
 	format_fun.varargs = LogicalType::ANY;
 	return format_fun;
+}
+
+ScalarFunction FormatLLMReorderFun::GetFunction() {
+	ScalarFunction format_llm_reorder_fun({LogicalType::VARCHAR}, LogicalType::VARCHAR,
+	                                      PrintfFunction<FMTFormat, duckdb_fmt::format_context, true>,
+	                                      BindPrintfFunction);
+	format_llm_reorder_fun.varargs = LogicalType::ANY;
+	return format_llm_reorder_fun;
 }
 
 } // namespace duckdb

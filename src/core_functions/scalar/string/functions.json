@@ -53,6 +53,13 @@
         "type": "scalar_function"
     },
     {
+        "name": "format_llm_reorder",
+        "parameters": "format,parameters...",
+        "description": "Formats a string using fmt syntax and reorder parameters according to their LLM score",
+        "example": "format_llm_reorder('Give an overview based on \"{}\" and {}', r.review, p.description)",
+        "type": "scalar_function"
+    },
+    {
         "name": "format_bytes",
         "parameters": "bytes",
         "description": "Converts bytes to a human-readable presentation (e.g. 16000 -> 15.6 KiB)",

@@ -107,8 +107,6 @@ enum class LogicalOperatorType : uint8_t {
 	LOGICAL_CREATE_SECRET = 190,
 
 	LOGICAL_EXTENSION_OPERATOR = 255,
-
-	LOGICAL_LLM = 254
 };
 
 DUCKDB_API string LogicalOperatorToString(LogicalOperatorType type);
