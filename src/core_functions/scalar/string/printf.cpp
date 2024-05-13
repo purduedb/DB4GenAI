@@ -1,9 +1,15 @@
 #include "fmt/printf.h"
 
 #include "duckdb/common/limits.hpp"
+#include "duckdb/common/pair.hpp"
+#include "duckdb/common/algorithm.hpp"
 #include "duckdb/core_functions/scalar/string_functions.hpp"
 #include "duckdb/planner/expression/bound_function_expression.hpp"
 #include "fmt/format.h"
+
+#include <set>
+#include <vector>
+
 
 namespace duckdb {
 
@@ -80,18 +86,34 @@ static void PrintfFunction(DataChunk &args, ExpressionState &state, Vector &resu
 		}
 	}
 	idx_t count = result.GetVectorType() == VectorType::CONSTANT_VECTOR ? 1 : args.size();
-
+	
 	auto format_data = FlatVector::GetData<string_t>(format_string);
 	auto result_data = FlatVector::GetData<string_t>(result);
-	std::vector<pair<double, idx_t>> custom_concat_order;
-	for (idx_t idx = 0; idx < args.ColumnCount(); idx++) {
-		custom_concat_order.push_back(make_pair(args.vector_column_statistics[idx].LLMScore(), idx));
+	std::vector<std::set<hash_t>> group_hashes;
+	std::vector<idx_t> total_str_lengths;
+	std::vector<double> scores;
+	for (idx_t col_idx = 1; col_idx < args.ColumnCount(); col_idx++) {
+		group_hashes.push_back(std::set<hash_t>({}));
+		scores.push_back(0.);
+		total_str_lengths.push_back(0);
+		for (idx_t idx = 0; idx < count; idx++) {
+			auto item = args.data[col_idx].GetValue(idx);
+			total_str_lengths[col_idx - 1] += item.ToString().length();
+			group_hashes[col_idx - 1].insert(item.Hash());
+		}
+		if (group_hashes[col_idx - 1].empty()) {
+			continue;
+		}
+		scores[col_idx - 1] = -(double)total_str_lengths[col_idx - 1] / (double) group_hashes[col_idx - 1].size();
+	}
+	std::vector<pair<double, idx_t>> custom_order;
+	for (idx_t col_idx = 1; col_idx < args.ColumnCount(); col_idx++) {
+		custom_order.push_back(make_pair(scores[col_idx - 1], col_idx));
 	}
 	if (reorder) {
-		sort(custom_concat_order.begin(), custom_concat_order.end());
+		std::sort(custom_order.begin(), custom_order.end());
 	}
-	for (const auto &it : custom_concat_order) {
-		idx_t idx = it.second;
+	for (idx_t idx = 0; idx < count; idx++) {
 		if (result.GetVectorType() == VectorType::FLAT_VECTOR && FlatVector::IsNull(result, idx)) {
 			// this entry is NULL: skip it
 			continue;
@@ -105,8 +127,8 @@ static void PrintfFunction(DataChunk &args, ExpressionState &state, Vector &resu
 		vector<duckdb_fmt::basic_format_arg<CTX>> format_args;
 		vector<unsafe_unique_array<data_t>> string_args;
 
-		for (idx_t col_idx = 1; col_idx < args.ColumnCount(); col_idx++) {
-			auto &col = args.data[col_idx];
+		for (auto i: custom_order) {
+			auto &col = args.data[i.second];
 			idx_t arg_idx = col.GetVectorType() == VectorType::CONSTANT_VECTOR ? 0 : idx;
 			switch (col.GetType().id()) {
 			case LogicalTypeId::BOOLEAN: {

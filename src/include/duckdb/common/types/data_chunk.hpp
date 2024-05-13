@@ -40,18 +40,6 @@ class Deserializer;
     In addition to holding the data of the vectors, the DataChunk also owns the
    selection vector that underlying vectors can point to.
 */
-class DataChunkColumnStatistics{
-public:
-	idx_t total_str_len;
-	set<hash_t> group_hash;
-public:
-	DataChunkColumnStatistics();
-	~DataChunkColumnStatistics();
-	void AddItem(const Value &val);
-	void RemoveItem(const Value &val);
-	void Reset();
-	double LLMScore(idx_t cardinality);
-};
 
 class DataChunk {
 public:
@@ -182,7 +170,5 @@ private:
 	idx_t capacity;
 	//! Vector caches, used to store data when ::Initialize is called
 	vector<VectorCache> vector_caches;
-	//! Vector column statics for llm
-	vector<DataChunkColumnStatistics> vector_column_statistics;
 };
 } // namespace duckdb
