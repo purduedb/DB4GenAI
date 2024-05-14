@@ -70,6 +70,6 @@ if __name__ == "__main__":
     con = duckdb.connect()
     con.create_function('llm', _llm, ['VARCHAR'], 'VARCHAR', type='arrow')
     con.create_function('semantic_search', _semantic_search, ['VARCHAR'], 'VARCHAR', type='arrow')
-    con.sql("create table t (q varchar);")
+    con.sql("create table t (question varchar);")
     con.sql("insert into t values ('greeting'), ('greeting'), ('goodbye');")
-    con.sql("select llm(t.q) from t;").show()
+    con.sql("select t.question as question, semantic_search(t.question) as context from t;").show()
