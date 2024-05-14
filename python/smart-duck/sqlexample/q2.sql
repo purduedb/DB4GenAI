@@ -7,11 +7,11 @@ WHERE
     contains(
         llm(
             format_llm_reorder(
-                'Analyze whether this movie would be suitable for kids based on {} and {}',
+                'Is this movie suitable for kids based on {} and {}? Answer Yes or No.',
                 m.movie_info,
                 r.review_content
             )
         ),
         'Yes'
     )
-    AND r.review_type = "Fresh";
+    AND r.review_type = 'Fresh';

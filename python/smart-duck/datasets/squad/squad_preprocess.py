@@ -5,6 +5,7 @@ import csv
 f = open('squad.json')
 with open('squad.csv', 'w') as csvfile:
     writer = csv.writer(csvfile)
+    writer.writerow(['question', 'context', 'is_impossible'])
     data = json.load(f)
     totali = len(data['data'])
     for i in range(totali):

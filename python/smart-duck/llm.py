@@ -46,30 +46,40 @@ def prepare_vectordb():
         ]
     )
 
+def prepare_tomato(con):
+    con.sql("create table reviews as select rotten_tomatoes_link, review_type, review_content from 'datasets/rotten_tomatoes/reviews.csv'")
+    con.sql("create table movies as select rotten_tomatoes_link, movie_title, movie_info from 'datasets/rotten_tomatoes/movies.csv';")
+
+def prepare_squad(con):
+    con.sql("create table squad as select * from 'datasets/squad/squad.csv';")
+    con.sql("SHOW squad;").show()
+
 
 if __name__ == "__main__":
     # Parser Related
     parser = argparse.ArgumentParser()
-    parser.add_argument('-m', '--model', choices = ['facebook/opt-125m'], default='facebook/opt-125m')
+    parser.add_argument('-m', '--model', default='huggyllama/llama-7b')
     args = parser.parse_args()
 
     # LLM Related
-    llm = LLM(model=args.model)
-    sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
+    # llm = LLM(model=args.model, enable_prefix_caching=True)
+    # sampling_params = SamplingParams(temperature=0.0)
     
     # VectorDB Related
-    vectordb = lancedb.connect("/tmp/knowledge")
-    embedding_model = get_registry().get("sentence-transformers").create(name="BAAI/bge-small-en-v1.5")
-    class Words(LanceModel):
-        global embedding_model
-        text: str = embedding_model.SourceField()
-        vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()
-    prepare_vectordb()
+    # vectordb = lancedb.connect("/tmp/knowledge")
+    # embedding_model = get_registry().get("sentence-transformers").create(name="BAAI/bge-large-en-v1.5")
+    # class Words(LanceModel):
+    #     global embedding_model
+    #     text: str = embedding_model.SourceField()
+    #     vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()
+    # prepare_vectordb()
     
     # DB Related
     con = duckdb.connect()
-    con.create_function('llm', _llm, ['VARCHAR'], 'VARCHAR', type='arrow')
-    con.create_function('semantic_search', _semantic_search, ['VARCHAR'], 'VARCHAR', type='arrow')
+    # prepare_tomato(con)
+    prepare_squad(con)
+    # con.create_function('llm', _llm, ['VARCHAR'], 'VARCHAR', type='arrow')
+    # con.create_function('semantic_search', _semantic_search, ['VARCHAR'], 'VARCHAR', type='arrow')
     con.sql("create table t (question varchar);")
     con.sql("insert into t values ('greeting'), ('greeting'), ('goodbye');")
-    con.sql("select t.question as question, semantic_search(t.question) as context from t;").show()
+    # con.sql("select llm(t.question) from t;").show()

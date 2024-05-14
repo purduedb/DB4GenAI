@@ -1,7 +1,7 @@
 SELECT
     AVG(
         TRY_CAST(
-            regexp_match(
+            regexp_extract(
                 llm(
                     format_llm_reorder(
                         'Rate an integer satisfaction score between 0 (bad) and 5 (good) based on {} and {}: ',

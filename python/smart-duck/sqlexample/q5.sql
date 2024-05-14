@@ -1,7 +1,7 @@
 SELECT
     llm(
         format(
-            "Given the following context {}, answer this question {}",
+            'Given the following context {}, answer this question {}',
             semantic_search(s.question),
             s.question
         )
@@ -9,4 +9,4 @@ SELECT
 FROM
     squad s
 WHERE
-    s.is_impossible = 'False';
+    s.is_impossible = false;
