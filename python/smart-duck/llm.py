@@ -28,7 +28,7 @@ def _llm(x):
 
 def _semantic_search(x):
     global vectordb
-    vector_table = vectordb.open_table("words")
+    vector_table = vectordb.open_table("small-squad")
     queries = x.to_pylist()
     contexts = [vector_table.search(query).limit(3).to_pydantic(Words) for query in queries]
     contexts_str = ['\n'.join([word.text for word in context]) for context in contexts]
