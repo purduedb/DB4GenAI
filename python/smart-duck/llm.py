@@ -6,13 +6,24 @@ from lancedb.pydantic import LanceModel, Vector
 from lancedb.embeddings import get_registry
 import duckdb
 import pyarrow as pa
+from collections import defaultdict as dd
 
 
 # distributed
 def _llm(x):
     global llm, sampling_params
     prompts = x.to_pylist()
-    outputs =  [o.outputs[0].text for o in llm.generate(prompts, sampling_params)]
+    prompts_index = dd(set)
+    outputs = [prompt for prompt in prompts]
+    for idx, prompt in enumerate(prompts):
+        prompts_index[prompt].add(idx)
+    _prompts = list(set(prompts))
+    _prompts.sort()
+    _outputs =  [o.outputs[0].text for o in llm.generate(_prompts, sampling_params)]
+    for idx, output in enumerate(_outputs):
+        prompt = _prompts[idx]
+        for original_idx in prompts_index[prompt]:
+            outputs[original_idx] = output
     return pa.chunked_array([outputs])
 
 def _semantic_search(x):
@@ -59,4 +70,6 @@ if __name__ == "__main__":
     con = duckdb.connect()
     con.create_function('llm', _llm, ['VARCHAR'], 'VARCHAR', type='arrow')
     con.create_function('semantic_search', _semantic_search, ['VARCHAR'], 'VARCHAR', type='arrow')
-    con.sql("select semantic_search('greetings');").show()
+    con.sql("create table t (q varchar);")
+    con.sql("insert into t values ('greeting'), ('greeting'), ('goodbye');")
+    con.sql("select llm(t.q) from t;").show()
