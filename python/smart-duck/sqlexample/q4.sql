@@ -3,10 +3,11 @@ SELECT
         TRY_CAST(
             regexp_extract(
                 llm(
-                    format_llm_reorder(
+                    format(
                         'Rate an integer satisfaction score between 0 (bad) and 5 (good) based on {} and {}: ',
                         r.review_content,
-                        m.movie_info
+                        m.movie_info,
+                        true
                     )
                 ),
                 '[^0-5]*([0-5])?',

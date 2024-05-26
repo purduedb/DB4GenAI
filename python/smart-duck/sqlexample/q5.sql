@@ -3,7 +3,8 @@ SELECT
         format(
             'Given the following context {}, answer this question {}',
             semantic_search(s.question),
-            s.question
+            s.question,
+            false
         )
     )
 FROM

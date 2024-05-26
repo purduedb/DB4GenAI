@@ -6,10 +6,11 @@ FROM
 WHERE
     contains(
         llm(
-            format_llm_reorder(
+            format(
                 'Is this movie suitable for kids based on {} and {}? Answer Yes or No.',
                 m.movie_info,
-                r.review_content
+                r.review_content,
+                true
             )
         ),
         'Yes'

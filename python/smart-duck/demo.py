@@ -78,7 +78,7 @@ if __name__ == "__main__":
     input("Q1:")
     con.sql('create table t(a varchar, b varchar);')
     con.sql("insert into t values ('1', '12'), ('2','12');")
-    con.sql("select format_llm_reorder('reorder concat {} {}',t.a,t.b) from t;").show()
+    con.sql("select format('reorder concat {} {}',t.a,t.b, true) from t;").show()
     q1 = read_sql('sqlexample/q1.sql')
     con.sql(q1).show()
 

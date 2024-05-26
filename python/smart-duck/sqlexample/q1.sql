@@ -1,9 +1,10 @@
 SELECT
     llm(
-        format_llm_reorder(
+        format(
             'Recommend movies for the user based on {} and {}',
             m.movie_info,
-            r.review_content
+            r.review_content,
+            true
         )
     )
 FROM
